@@ -81,7 +81,12 @@ dt1=0.001
 time_max=54
 iter_count=time_max/dt1
 
-b1=lv_solver(x0=3,y0=5,A=1,B=0.5,C=2,D=1,iterations = iter_count,dt=dt1,conserve = F)
+A1=1
+B1=0.5
+C1=2
+D1=1
+
+b1=lv_solver(x0=3,y0=5,A=A1,B=B1,C=C1,D=D1,iterations = iter_count,dt=dt1,conserve = F)
 
 #b1$pop_df%>%ggplot(aes(x=time,y=slope1))+
 #  geom_path()
@@ -138,6 +143,26 @@ theta_dif%>%
   geom_line()+
   geom_point(aes(color=as.factor(id)))+
   labs(x="Time",y="Estimated Period",color="Point")
+
+
+
+
+
+period_finder=function(guess_T,C,D){
+  r1=integrate(f=prey_function,lower = 0,upper = guess_T)$value
+  r1=r1/guess_T
+  avg_pop=D/C
+  dif=abs(r1-avg_pop)
+  return(dif)
+}
+period_finder=Vectorize(period_finder,vectorize.args = "guess_T")
+
+uniroot(period_finder,lower=0.1,upper=5,C=C1,D=D1)
+
+period_finder(guess_T =seq(0,5,by=0.01),C=C1,D=D1)%>%plot()
+
+nlm(f=period_finder,p=1,C=C1,D=D1)
+
 
 mod1=lm(data=theta_dif,dif~time)
 summary(mod1)
@@ -199,4 +224,27 @@ p1=cycle_df%>%
   transition_time(time)
 p1  
 
-theta_roots[6]-theta_roots[2]
+period_estimate=theta_roots[6]-theta_roots[2]
+
+prey_function=approxfun(x=cycle_df$time,y=cycle_df$Prey)
+pred_function=approxfun(x=cycle_df$time,y=cycle_df$Predator)
+
+time_test=seq(0,period_estimate,length.out=100)
+
+period_test=data.frame(time0=time_test,time1=time_test+period_estimate)
+
+period_test%>%
+  mutate(X0=prey_function(time0),
+         X1=prey_function(time1),
+         Y0=pred_function(time0),
+         Y1=pred_function(time1))%>%
+  gather(key="series",value=pop,-c(time0,time1))%>%
+  mutate(species=ifelse(grepl("X",series),"Prey","Predator"))%>%
+  ggplot(aes(x=time0,y=pop,color=species))+
+  geom_line()+
+  facet_wrap(~series,scales = "free")+
+  labs(x="Time",y="Pop",color="Species",title="Periodic Populations")+
+  scale_color_manual(values = c("Red","Blue"))+
+  ggthemes::theme_clean()
+
+
