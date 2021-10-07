@@ -560,3 +560,57 @@ a2_min=cycle_df_a2%>%select(time,Prey,Predator)%>%
 
 extinct_mod1=lm(data=a1_min,Predator~time)
 extinct_mod2=lm(data=a2_min,Predator~time)
+
+################################################################################
+# Changing A -> Extinction? 
+################################################################################
+
+dt1=0.001
+time_max=10
+iter_count=time_max/dt1
+
+A1=1
+B1=0.5
+C1=2
+D1=1
+
+tictoc::tic()
+A_seq=seq(1,150,length.out=1000)
+min_pop_df=data.frame()
+
+for(i in 1:length(A_seq)){
+  print(i/length(A_seq))
+  b1=lv_solver(x0=3,y0=5,A=A_seq[i],B=B1,C=C1,D=D1,iterations = iter_count,dt=dt1,conserve = F)
+  prey_pop=approxfun(x=b1$pop_df$time,y=b1$pop_df$Prey)
+  prey_deriv=function(x){
+    df=numDeriv::grad(func=prey_pop,x) 
+    return(df)}
+  pred_pop=approxfun(x=b1$pop_df$time,y=b1$pop_df$Predator)
+  pred_deriv=function(x){
+    df=numDeriv::grad(func=pred_pop,x) 
+    return(df)}
+  
+  prey_extreme=rootSolve::uniroot.all(f=prey_deriv,interval = c(0.01,9.99))
+  prey_min=prey_pop(prey_extreme)[1:2]%>%min()
+  
+  pred_extreme=rootSolve::uniroot.all(f=pred_deriv,interval = c(0.01,9.99))
+  pred_min=pred_pop(pred_extreme)[1:2]%>%min()
+  
+  min_pop_df=rbind(min_pop_df,data.frame(A=A_seq[i],prey_min=prey_min,pred_min=pred_min))
+  
+}
+tictoc::toc()
+#View(min_pop_df)
+
+min_pop_df%>%
+  gather(key=Species,value = pop,-1)%>%
+  mutate(Species2=ifelse(Species=="pred_min","Predator","Prey"))%>%
+  ggplot(aes(x=A,y=pop,color=Species2))+
+  geom_line()+
+  scale_color_manual(values=c("Red","Blue"))+
+  labs(x="a",y="min Pop",color="Species")+
+  ggforce::facet_zoom(xlim = c(1,25))+
+  theme_bw()
+  
+
+
